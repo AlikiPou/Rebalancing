@@ -8,9 +8,7 @@ import itertools
 from collections import defaultdict
 from pathlib import Path
 
-# Testing the case without k index in the decision variables,
-# aka making the assumption of having a unform fleet of vehicles
-# Another assumption is that the initial load is always 0.
+# Testing the case without k index in the decision variables, aka making the assumption of having a uniform fleet of vehicles. Initial load is always 0.
 
 # Create a new model
 Rebalancing = grb.Model(name="MIP Model")
@@ -29,70 +27,7 @@ actual_demand = {}
 forecast_node = {}
 
 datafiles = []
-''''''
 datafiles.append("Penteli_case.txt")
-'''
-datafiles.append("Coordinates_12_RC_NYC.txt")
-datafiles.append("Coordinates_12_Cluster_NYC.txt")
-datafiles.append("Coordinates_15_RC_NYC.txt")
-datafiles.append("Coordinates_15_Cluster_NYC.txt")
-
-datafiles.append("Coordinates_12_Cluster_Ber.txt")
-datafiles.append("Coordinates_12_Random_Ber.txt")
-datafiles.append("Coordinates_12_RC_Ber.txt")
-datafiles.append("Coordinates_12_Cluster_Ber.txt")
-datafiles.append("Coordinates_12_RC_Bar.txt")
-datafiles.append("Coordinates_12_Random_Bar.txt")
-datafiles.append("Coordinates_12_Cluster_Bar.txt")
-datafiles.append("Coordinates_12_RC_PoA.txt")
-datafiles.append("Coordinates_12_Random_PoA.txt")
-datafiles.append("Coordinates_12_Cluster_poa.txt")
-datafiles.append("Coordinates_12_Random_NYC.txt")
-
-
-
-datafiles.append("Coordinates_15_Random_NYC.txt")
-datafiles.append("Coordinates_15_RC_Ber.txt")
-datafiles.append("Coordinates_15_Random_Ber.txt")
-datafiles.append("Coordinates_15_Cluster_Ber.txt")
-datafiles.append("Coordinates_15_RC_Bar.txt")
-datafiles.append("Coordinates_15_Random_Bar.txt")
-datafiles.append("Coordinates_15_Cluster_Bar.txt")
-datafiles.append("Coordinates_15_RC_PoA.txt")
-datafiles.append("Coordinates_15_Random_PoA.txt")
-datafiles.append("Coordinates_15_Cluster_poa.txt")
-
-datafiles.append("Coordinates_20_RC_NYC.txt")
-datafiles.append("Coordinates_20_Random_NYC.txt")
-datafiles.append("Coordinates_20_Cluster_NYC.txt")
-datafiles.append("Coordinates_20_RC_Ber.txt")
-datafiles.append("Coordinates_20_Random_Ber.txt")
-datafiles.append("Coordinates_20_Cluster_Ber.txt")
-datafiles.append("Coordinates_20_RC_Bar.txt")
-datafiles.append("Coordinates_20_Random_Bar.txt")
-datafiles.append("Coordinates_20_Cluster_Bar.txt")
-datafiles.append("Coordinates_20_RC_poa.txt")
-datafiles.append("Coordinates_20_Random_PoA.txt")
-datafiles.append("Coordinates_20_Cluster_poa.txt")
-
-
-datafiles.append("Coordinates_5_Random_PoA.txt")
-datafiles.append("Coordinates_5_Random_NYC.txt")
-datafiles.append("Coordinates_5_Random_Bar.txt")
-datafiles.append("Coordinates_5_Random_Ber.txt")
-
-datafiles.append("Coordinates_8_Random_PoA.txt")
-
-datafiles.append("Coordinates_8_Random_NYC.txt")
-    
-datafiles.append("Coordinates_8_Random_Bar.txt")
-datafiles.append("Coordinates_8_Random_Ber.txt")
-
-datafiles.append("Coordinates_10_Random_PoA.txt")
-datafiles.append("Coordinates_10_Random_NYC.txt")
-datafiles.append("Coordinates_10_Random_Bar.txt")
-datafiles.append("Coordinates_10_Random_Ber.txt")
-'''
 import os
 for i in datafiles:
 
@@ -122,11 +57,6 @@ for i in datafiles:
     print('Status in node:', status_node)
     print('Actual demand:', actual_demand)
 
-
-    #vehicles = (k for k in range(1, numberOfVehicles + 1))
-    #vehicles = tuple(vehicles)
-    # print("Vehicles:", vehicles)
-
     nodes = (i for i in range(0, numberOfNodes + 1))
     nodes = tuple(nodes)
     # print("Nodes:", nodes)
@@ -135,57 +65,19 @@ for i in datafiles:
     locations = tuple(locations)
     print("Locations:", locations)
 
-    '''
-    subset = []
-    for subsetsize in range(2, numberofnodes + 1):
-        subsets = itertools.combinations(locations, subsetsize)
-        subset.extend(subsets)
-
-
-    PathsFromDepot= []
-    for subsetsize in range(2, numberOfNodes + 1):
-        #els = [list(x) for x in itertools.combinations(nodes, i)]
-        els = [list(itertools.combinations(nodes, subsetsize))]
-        for i in range(0, len(els)):
-            for j in range(0, len(els[i])):
-                for l in range(0, len(els[i][j])):
-                    if els[i][j][l] == 0:
-                        PathsFromDepot.append(els[i][j])
-    '''
-
     # initial load of vehicle k
     initial_load = {(i): 0 for i in nodes}
     print("The initial load is:", initial_load)
 
+    # number of vehicles
+    K = 1
+
     # penalty
     p = 1500
-
     print("The penalty for unmet demand is:", p)
 
     # big M
     M = 100000
-
-    '''
-    # Calculation of actual demand in node i WIP
-    actual_demand = {}
-    for i in nodes:
-        actual_demand[i] = status_node[i] - forecast_node[i]
-        print("The actual demand in node ({}): {}".format(i, actual_demand[i]))
-    '''
-    '''
-    cost = {}
-    # travel cost on arc i,j random
-    for i in nodes:
-        for j in nodes:
-            if i != j:
-                cost[(i, j)] = rnd.randint(10, 30)
-                print(cost[(i, j)], end=" ")
-            else:
-                cost[(i, j)] = 0
-                print(cost[(i, j)], end=" ")
-        print(actual_demand[i],P[i], status_node[i])
-    print("The travel cost from node (i) to (j) is:", cost)
-    '''
 
     validCut1_subset = {(i, j): [] for i in locations for j in locations}
     for i in locations:
@@ -203,195 +95,37 @@ for i in datafiles:
             if len(validCut1_subset[i, j]) == 0:
                 del validCut1_subset[i, j]
 
-    '''
-    #########INFEASIBLE PATHS - EQUATION (33) from paper
-    infeasiblePaths= []
-    maxValue = - 100000
-    minValue= 100000
-    cumulativeLoad = 0
-    for i in range(0, len(PathsFromDepot)):
-        for j in range(0, len(PathsFromDepot[i])):
-            cumulativeLoad = cumulativeLoad + actual_demand[PathsFromDepot[i][j]]
-            if cumulativeLoad > maxValue:
-                maxValue = cumulativeLoad
-            if cumulativeLoad < minValue:
-                minValue = cumulativeLoad
-        if maxValue - minValue > q:
-            infeasiblePaths.append(PathsFromDepot[i])
-        cumulativeLoad = 0
-        maxValue = - 100000
-        minValue = 100000
-    '''
-
     #### decision variables ####
     # Test if 1 y variable taking all values would work and remove g variable
     # if vehicle k traverses arc i,j
-    x = {(i, j): Rebalancing.addVar(vtype=grb.GRB.BINARY,
-                                       name=f"x_{i}_{j}".format(i, j))
-         for i in nodes for j in nodes}
-
-    # if station i is a load station
-    g = {(i): Rebalancing.addVar(vtype=grb.GRB.BINARY,
-                                    name=f"g_{i}".format(i))
-         for i in nodes}
-
-    # if station i is an unload station
-    d = {(i): Rebalancing.addVar(vtype=grb.GRB.BINARY,
-                                    name=f"d_{i}".format(i))
-         for i in nodes}
+    x = {(i, j): Rebalancing.addVar(vtype=grb.GRB.BINARY, name=f"x_{i}_{j}".format(i, j)) for i in nodes for j in nodes}
 
     # load of vehicle k after serving node i
-    l = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000,
-                                    name=f"l_{i}".format(i))
-         for i in nodes}
+    l = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"l_{i}".format(i)) for i in nodes}
 
-    # status of station i ∈ N after being served
-    st = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000,
-                                  name=f"st_{i}".format(i))
-          for i in nodes}
+    # status of station i ∈ N after being served (eta)
+    st = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"st_{i}".format(i)) for i in nodes}
 
     # Number of bikes loaded on vehicle k in station i
-    y_l = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER,
-                                      name=f"y_l_{i}".format(i))
-           for i in nodes}
-
-    # Number of bikes unloaded on vehicle k in station i
-    y_u = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER,
-                                      name=f"y_u_{i}".format(i))
-           for i in nodes}
+    y = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, name=f"y_{i}".format(i)) for i in nodes}
 
     # supporting integer variable to incorporate penalty of unmet demand, calculates excess or shortage
-    b = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000,
-                                 name=f"b_{i}".format(i))
-         for i in nodes}
+    b = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"b_{i}".format(i)) for i in nodes}
 
     # integer auxiliary variable used to bound bi
-    r = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000,
-                                 name=f"r_{i}".format(i))
-         for i in nodes}
+    r = {(i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"r_{i}".format(i)) for i in nodes}
 
     # binary auxiliary variable used to bound bi, where θi = 1 if there is a shortage of bicycles
-    theta = {(i): Rebalancing.addVar(vtype=grb.GRB.BINARY,
-                                     name=f"theta_{i}".format(i))
-             for i in nodes}
+    theta = {(i): Rebalancing.addVar(vtype=grb.GRB.BINARY, name=f"theta_{i}".format(i)) for i in nodes}
 
-    #### Objective function (minimize total cost & penalty of unmet demand) #### (1)
-    Rebalancing.setObjective(
-        grb.quicksum(cost[i, j] * x[i, j] for i in nodes for j in nodes if i != j)
-        + p * grb.quicksum(r[i] for i in nodes), grb.GRB.MINIMIZE)
-
-    #### Constraints ####
-
-    # Everything leaves from the depot (2)
-    Rebalancing.addConstr((grb.quicksum(x[0, j] for j in nodes if j != 0)) == 1)
-
-    # Everything returns at the depot (3)
-    Rebalancing.addConstr((grb.quicksum(x[j, 0] for j in nodes if j != 0)) == 1)
-
-    # Every node is served by 1 vehicle and visited at most once (4)
+    # initialisations
     for i in nodes:
-        if i != 0:
-            if actual_demand[i] < 0:
-                Rebalancing.addConstr(grb.quicksum((x[i, j] for j in nodes if j != i)) == 1)
-            else:
-                Rebalancing.addConstr(grb.quicksum((x[i, j] for j in nodes if j != i)) <= 1)
+        Rebalancing.addConstr(y[i] >= 0)
+        Rebalancing.addConstr(l[i] >= 0)
+        Rebalancing.addConstr(st[i] >= 0)
+        Rebalancing.addConstr(y[i] >= -40)
 
-    # Flow conservation excluding 0 (5)
-    for j in nodes:
-            if j != 0:
-                Rebalancing.addConstr((grb.quicksum(x[i, j] for i in nodes if j != i) -
-                                       grb.quicksum(x[j, i] for i in nodes if j != i) == 0))
-
-    ## # # # # # # # # # # # # #  Subtour elimination constraint (6)
-    ## Excluded 0, Dantzig constraint
-    # for s in subset:
-    #    Rebalancing.addConstr(grb.quicksum(x[i, j, k] for i in s for j in s if i != j if i!=0 if j!=0 for k in vehicles) <= len(s) - 1)
-
-    # calculate the number of bikes loaded in vehicle after serving node i (7), (8), (9)
-    for i in nodes:
-        if i != 0:
-            Rebalancing.addConstr(l[i] >= - M * grb.quicksum(x[i, j] for j in nodes if j != i))
-
-    for i in nodes:
-        if i != 0:
-            Rebalancing.addConstr(l[i] <= M * grb.quicksum(x[i, j] for j in nodes if j != i))
-
-    for i in nodes:
-        for j in nodes:
-            if i != j and j != 0:
-                Rebalancing.addConstr(l[j] <= l[i] + y_l[j] - y_u[j] + M * (1 - x[i, j]))
-
-        for i in nodes:
-            for j in nodes:
-                if i != j and j != 0:
-                    Rebalancing.addConstr(l[j] >= l[i] + y_l[j] - y_u[j] - M * (1 - x[i, j]))
-
-    # number of bikes available to load (10), (11)
-        for i in nodes:
-            for j in nodes:
-                if i != j:
-                    Rebalancing.addConstr(y_l[j] <= vehicleCapacity - l[i] + M * (1 - x[i, j]))
-
-        for j in nodes:
-            Rebalancing.addConstr(y_l[j] >= 0)
-
-        for j in nodes:
-            Rebalancing.addConstr(y_l[j] <= M * grb.quicksum(x[i, j] for i in nodes if i != j))
-
-    # number of bikes available to unload (12), (13)
-        for i in nodes:
-            for j in nodes:
-                if i != j:
-                    Rebalancing.addConstr(y_u[j] <= l[i] + M * (1 - x[i, j]))
-
-        for j in nodes:
-            Rebalancing.addConstr(y_u[j] >= 0)
-
-        for j in nodes:
-            Rebalancing.addConstr(y_u[j] <= M * grb.quicksum(x[i, j] for i in nodes if i != j))
-
-    # A station can be either a load or unload station (14)
-    for i in nodes:
-        if i != 0:
-            Rebalancing.addConstr((g[i] + d[i]) <= 1)
-
-    # Connect load or unload with bike availability (15), (16)
-        for i in nodes:
-            Rebalancing.addConstr(y_l[i] <= M * g[i])
-
-        for i in nodes:
-            Rebalancing.addConstr(y_u[i] <= M * d[i])
-
-    # if y=0, g/d=0
-
-        for i in nodes:
-            Rebalancing.addConstr(y_l[i] >= g[i])
-
-        for i in nodes:
-            Rebalancing.addConstr(y_u[i] >= d[i])
-
-    # number of bikes does not exceed vehicle capacity (17)
-
-        for i in nodes:
-            Rebalancing.addConstr(l[i] >= 0)
-
-        for i in nodes:
-            Rebalancing.addConstr(l[i] <= vehicleCapacity)
-
-    # Ensures that parking station capacity is not violated (18)
-    for i in nodes:
-        if i != 0:
-            Rebalancing.addConstr(P[i] >= status_node[i] - y_l[i] + y_u[i])
-
-    # When a location needs unloading or loading force the vehicle to pass from this spot
-    Rebalancing.addConstrs(sum(x[i, j] for i in nodes) >= d[j] for j in nodes if i != j)
-    Rebalancing.addConstrs(sum(x[i, j] for i in nodes) >= g[j] for j in nodes if j != i)
-
-    # When a location needs unloading force theta of i to be 1
-    Rebalancing.addConstrs(d[i] <= theta[i] for i in nodes)
-
-    Rebalancing.addConstr(y_l[0] == 0)
-    Rebalancing.addConstr(y_u[0] == 0)
+    Rebalancing.addConstr(y[0] == 0)
     Rebalancing.addConstr(theta[0] == 0)
     Rebalancing.addConstr(r[0] == 0)
     Rebalancing.addConstr(b[0] == 0)
@@ -404,10 +138,65 @@ for i in datafiles:
     Rebalancing.addConstr(st[0] == 0)
     Rebalancing.addConstr(P[0] == 0)
 
-    # st_i is the status of node after being served by vehicle k (19)
+    #### Objective function (minimize total cost & penalty of unmet demand) #### (1)
+    Rebalancing.setObjective(
+        grb.quicksum(cost[i, j] * x[i, j] for i in nodes for j in nodes if i != j)
+       + p * grb.quicksum(r[i] for i in nodes), grb.GRB.MINIMIZE)
+
+    #### Constraints ####
+
+    # Everything leaves from the depot (2)
+    Rebalancing.addConstr((grb.quicksum(x[0, j] for j in nodes if j != 0)) == K)
+
+    # Everything returns at the depot (3)
+    Rebalancing.addConstr((grb.quicksum(x[j, 0] for j in nodes if j != 0)) == K)
+    '''
+    # Every node is served by 1 vehicle and visited at most once (4)
     for i in nodes:
         if i != 0:
-            Rebalancing.addConstr(st[i] == status_node[i] - y_l[i] + y_u[i])
+            if actual_demand[i] < 0:
+                Rebalancing.addConstr(grb.quicksum((x[i, j] for j in nodes if j != i)) == 1)
+            else:
+                Rebalancing.addConstr(grb.quicksum((x[i, j] for j in nodes if j != i)) <= 1)
+    
+    # Flow conservation excluding 0 (5)
+    for j in nodes:
+        if j != 0:
+            Rebalancing.addConstr((grb.quicksum(x[i, j] for i in nodes if j != i) - grb.quicksum(x[j, i] for i in nodes if j != i) == 0))
+
+
+    ## # # # # # # # # # # # # #  Subtour elimination constraint (6)
+    ## Excluded 0, Dantzig constraint
+    # for s in subset:
+    #    Rebalancing.addConstr(grb.quicksum(x[i, j, k] for i in s for j in s if i != j if i!=0 if j!=0 for k in vehicles) <= len(s) - 1)
+
+    # calculate the number of bikes loaded in vehicle after serving node i (7), (8)
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0:
+                Rebalancing.addConstr(l[i] + y[i] <= l[j] + vehicleCapacity * (1 - x[i,j]))
+
+    
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0:
+                Rebalancing.addConstr(l[i] + y[i] >= l[j] + vehicleCapacity * (1 - x[i,j]))
+
+    # load cannot exceed capacity (9)
+    for i in nodes:
+        Rebalancing.addConstr(l[i] <= vehicleCapacity)
+
+    # the available bikes to load at station cannot exceed the initial status at the station
+    for i in nodes:
+        Rebalancing.addConstr(y[i] <= status_node[i])
+
+    # parking station capacity cannot be exceeded
+    for i in nodes:
+        Rebalancing.addConstr(P[i] >= status_node[i] - y[i])
+
+    # the final status of the station after being served
+    for i in nodes:
+        Rebalancing.addConstr(st[i] == status_node[i] - y[i])
 
     # the penalty is charged if only there is a shortage of bikes in node i (20), (21), (22), (23)
     for i in nodes:
@@ -432,7 +221,7 @@ for i in datafiles:
 
     # Set the load of vehicle k when leaving the depot equal to the initial vehicle load
     Rebalancing.addConstr(l[0] == initial_load[0])
-
+'''
     ######## VALID INEQUALITIES ######## (30) and (31) from paper
     for h in validCut1_subset:
         for i in locations:
@@ -448,17 +237,6 @@ for i in datafiles:
                     Rebalancing.addConstr(
                         grb.quicksum(x[h, i] for h in validCut1_subset[i, j]) + x[i, j] <= 1)
 
-    '''
-    ######## VALID INEQUALITIES ######## (33) from paper
-
-    for k in vehicles:
-        for f in range (0, len(infeasiblePaths)):
-            print('length of IND PATHS', len(infeasiblePaths[f]))
-            Rebalancing.addConstr(x[0, infeasiblePaths[f][1], k] +
-            sum(sum(x[i, j, k] for j in infeasiblePaths[f][j] if j >= i + 1 and j <= len(infeasiblePaths[f]  -1 ))
-            for i in infeasiblePaths[f][i] if i >= 1 and i <= len(infeasiblePaths[f] - 2)) )
-
-    '''
 
     ###CALLBACK METHOD- LAZY CONSTRAINTS - SUBTOUR ELIMINATION
 
@@ -558,15 +336,15 @@ for i in datafiles:
 
     # Optimize the model
     Rebalancing._x = x
-    Rebalancing.Params.LazyConstraints = 1
+    # comment for debug Rebalancing.Params.LazyConstraints = 1
     # Rebalancing.setParam('MIPGap', 0.00)  # finish running once 5% gap is reached
     # Rebalancing.setParam('Timelimit', 7200) # finish running once 2hrs has passed
-    Rebalancing.optimize(subtourelim)
+    # comment for debug Rebalancing.optimize(subtourelim)
 
     runtime = Rebalancing.Runtime
     runtime = "%.2f" % runtime
     RoutingCosts = 0
-    gap = Rebalancing.MIPGap
+#    gap = Rebalancing.MIPGap
     for i, j in x:
         if x[i, j].x > 0.1:
             RoutingCosts = RoutingCosts + cost[i, j]
