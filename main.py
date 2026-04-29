@@ -25,9 +25,10 @@ actual_demand = {}
 forecast_node = {}
 
 datafiles = []
-''''''
-datafiles.append("Penteli_case.txt")
+
 '''
+datafiles.append("Penteli_case.txt")
+
 datafiles.append("Coordinates_12_RC_NYC.txt")
 datafiles.append("Coordinates_12_Cluster_NYC.txt")
 datafiles.append("Coordinates_15_RC_NYC.txt")
@@ -44,8 +45,6 @@ datafiles.append("Coordinates_12_RC_PoA.txt")
 datafiles.append("Coordinates_12_Random_PoA.txt")
 datafiles.append("Coordinates_12_Cluster_poa.txt")
 datafiles.append("Coordinates_12_Random_NYC.txt")
-
-
 
 datafiles.append("Coordinates_15_Random_NYC.txt")
 datafiles.append("Coordinates_15_RC_Ber.txt")
@@ -71,35 +70,34 @@ datafiles.append("Coordinates_20_RC_poa.txt")
 datafiles.append("Coordinates_20_Random_PoA.txt")
 datafiles.append("Coordinates_20_Cluster_poa.txt")
 
-
 datafiles.append("Coordinates_5_Random_PoA.txt")
 datafiles.append("Coordinates_5_Random_NYC.txt")
 datafiles.append("Coordinates_5_Random_Bar.txt")
 datafiles.append("Coordinates_5_Random_Ber.txt")
 
 datafiles.append("Coordinates_8_Random_PoA.txt")
-
 datafiles.append("Coordinates_8_Random_NYC.txt")
-    
 datafiles.append("Coordinates_8_Random_Bar.txt")
 datafiles.append("Coordinates_8_Random_Ber.txt")
 
 datafiles.append("Coordinates_10_Random_PoA.txt")
 datafiles.append("Coordinates_10_Random_NYC.txt")
 datafiles.append("Coordinates_10_Random_Bar.txt")
+'''
 datafiles.append("Coordinates_10_Random_Ber.txt")
+'''
 '''
 import os
 for i in datafiles:
 
     path = i
-    data_header = np.loadtxt('Instances/Penteli/' + path, max_rows=1, dtype=int)
+    data_header = np.loadtxt('Instances/DataSetI/' + path, max_rows=1, dtype=int)
     print(data_header)
     numberOfNodes = data_header[0]
     numberOfVehicles = data_header[1]
     vehicleCapacity = data_header[2]
 
-    data_main_body = np.loadtxt('Instances/Penteli/' + path, skiprows=1, dtype=float)
+    data_main_body = np.loadtxt('Instances/DataSetI/' + path, skiprows=1, dtype=float)
     for i in range(0, numberOfNodes + 1):
         actual_demand[i] = int(data_main_body[i, numberOfNodes + 2])
         P[i] = int(data_main_body[i, numberOfNodes + 3])
@@ -314,7 +312,7 @@ for i in datafiles:
     # Everything returns at the depot (3)
     for k in vehicles:
         Rebalancing.addConstr((grb.quicksum(x[j, 0, k] for j in nodes if j != 0)) == 1)
-
+    '''
     # Every node is served by 1 vehicle and visited at most once (4)
     for i in nodes:
         if i != 0:
@@ -322,6 +320,11 @@ for i in datafiles:
                 Rebalancing.addConstr(grb.quicksum((x[i, j, k] for j in nodes if j != i for k in vehicles)) == 1)
             else:
                 Rebalancing.addConstr(grb.quicksum((x[i, j, k] for j in nodes if j != i for k in vehicles)) <= 1)
+    '''
+    # Every node is served by 1 vehicle and visited at most once (4) added 01.04
+    for i in nodes:
+        if i != 0:
+            Rebalancing.addConstr(grb.quicksum((x[i, j, k] for j in nodes if j != i for k in vehicles)) <= 1)
 
     # Flow conservation excluding 0 (5)
     for j in nodes:
@@ -373,6 +376,17 @@ for i in datafiles:
         for j in nodes:
             Rebalancing.addConstr(y_l[j, k] <= M * grb.quicksum(x[i, j, k] for i in nodes if i != j))
 
+
+    # TEST unload only what is avaialble added 31.03.26 #
+    for k in vehicles:
+        for i in nodes:
+            Rebalancing.addConstr(y_l[i, k] <= status_node[i])
+    '''
+    # Unload bikes only from nodes that have surplass 31.03.26 #
+    for k in vehicles:
+        for i in nodes:
+            Rebalancing.addConstr(y_l[i, k] * actual_demand[i] >= 0 )
+    '''
     # number of bikes available to unload (12), (13)
     for k in vehicles:
         for i in nodes:
@@ -428,10 +442,11 @@ for i in datafiles:
         if i != 0:
             Rebalancing.addConstr(P[i] >= status_node[i] - grb.quicksum(y_l[i, k] for k in vehicles) + grb.quicksum(
                 y_u[i, k] for k in vehicles))
-
+    '''
     # When a location needs unloading or loading force the vehicle to pass from this spot
     Rebalancing.addConstrs(sum(sum(x[i, j, k] for i in nodes) for k in vehicles) >= d[j, k] for j in nodes if i != j)
     Rebalancing.addConstrs(sum(sum(x[i, j, k] for i in nodes) for k in vehicles) >= g[j, k] for j in nodes if j != i)
+    '''
 
     # When a location needs unloading force theta of i to be 1
     Rebalancing.addConstrs(sum(d[i, k] for k in vehicles) <= theta[i] for i in nodes)
@@ -498,19 +513,6 @@ for i in datafiles:
                     if (i, j) == h:
                         Rebalancing.addConstr(
                             grb.quicksum(x[h, i, k] for h in validCut1_subset[i, j]) + x[i, j, k] <= 1)
-
-    '''
-    ######## VALID INEQUALITIES ######## (33) from paper
-
-    for k in vehicles:
-        for f in range (0, len(infeasiblePaths)):
-            print('length of IND PATHS', len(infeasiblePaths[f]))
-            Rebalancing.addConstr(x[0, infeasiblePaths[f][1], k] +
-            sum(sum(x[i, j, k] for j in infeasiblePaths[f][j] if j >= i + 1 and j <= len(infeasiblePaths[f]  -1 ))
-            for i in infeasiblePaths[f][i] if i >= 1 and i <= len(infeasiblePaths[f] - 2)) )
-
-    '''
-
 
     ###CALLBACK METHOD- LAZY CONSTRAINTS - SUBTOUR ELIMINATION
 
@@ -631,7 +633,7 @@ for i in datafiles:
     obj = 0
     obj = Rebalancing.objVal
 
-    f = open('Solutions/Penteli/WithValidInequalities/Solution_' + path, 'w')
+    f = open('Solutions/DataSetI/WithValidInequalities/Solution_' + path, 'w')
     counter = 0
     f.write(f"{RoutingCosts} {obj} {runtime} {gap}\n")
     for i, j, k in x:
