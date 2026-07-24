@@ -30,6 +30,8 @@ S = 3
 datafiles = []
 
 '''
+datafiles.append("Coordinates_7_Athens.txt")
+
 datafiles.append("Coordinates_12_Cluster_Ber.txt")
 datafiles.append("Coordinates_12_Random_Ber.txt")
 datafiles.append("Coordinates_12_RC_Ber.txt")
@@ -42,13 +44,14 @@ datafiles.append("Coordinates_12_Random_PoA.txt")
 datafiles.append("Coordinates_12_Cluster_PoA.txt")
 datafiles.append("Coordinates_12_Random_NYC.txt")
 datafiles.append("Coordinates_12_Cluster_NYC.txt")
-'''
 datafiles.append("Coordinates_12_RC_NYC.txt")
-'''
+
 
 datafiles.append("Coordinates_15_Random_NYC.txt")
 datafiles.append("Coordinates_15_RC_Ber.txt")
+'''
 datafiles.append("Coordinates_15_Random_Ber.txt")
+'''
 datafiles.append("Coordinates_15_Cluster_Ber.txt")
 datafiles.append("Coordinates_15_RC_Bar.txt")
 datafiles.append("Coordinates_15_Random_Bar.txt")
@@ -210,10 +213,10 @@ for i in datafiles:
                 Rebalancing.addConstr(x[i, j] == 0)
 
     # initialize status
-    Rebalancing.addConstr(st[0] == 0)
-    Rebalancing.addConstr(P[0] == 0)
-    Rebalancing.addConstr(st[numberOfNodes +1] == 0)
-    Rebalancing.addConstr(P[numberOfNodes +1] == 0)
+    st[0] = 0
+    P[0] = 0
+    st[numberOfNodes +1] = 0
+    P[numberOfNodes +1] = 0
 
     #### Objective function (minimize total cost & penalty of unmet demand) #### (1)
     Rebalancing.setObjective(
@@ -270,11 +273,11 @@ for i in datafiles:
             if i != j and j != 0 and j != (numberOfNodes + 1) and i < (numberOfNodes + 1):
                 Rebalancing.addConstr(y[j] <= vehicleCapacity - l[i] + M * (1 - x[i, j]))
 
-        # If y[j] < 0, cannot unload more than current vehicle load (12)
-        for i in nodes:
-            for j in nodes:
-                if i != j and j != 0 and j != (numberOfNodes + 1) and i < (numberOfNodes + 1):
-                    Rebalancing.addConstr(-y[j] <= l[i] + M * (1 - x[i, j]))
+    # If y[j] < 0, cannot unload more than current vehicle load (12)
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0 and j != (numberOfNodes + 1) and i < (numberOfNodes + 1):
+                Rebalancing.addConstr(-y[j] <= l[i] + M * (1 - x[i, j]))
 
     # If a station is not visited, y[i] must be zero (13), (14)
     for j in nodes:
@@ -283,13 +286,13 @@ for i in datafiles:
     for j in nodes:
         Rebalancing.addConstr(y[j] <= M * grb.quicksum(x[i, j] for i in nodes if i != j and i < (numberOfNodes + 1)))
 
-    # parking station capacity cannot be exceeded (15)
-    for i in nodes:
-        Rebalancing.addConstr(P[i] >= status_node[i] - y[i])
-
     # the final status of the station after being served (16)
     for i in nodes:
         Rebalancing.addConstr(st[i] == status_node[i] - y[i])
+
+    # parking station capacity cannot be exceeded (15)
+    for i in nodes:
+        Rebalancing.addConstr(P[i] >= st[i])
 
     # the penalty is charged if only there is a shortage of bikes in node i (17), (18), (19), (20), (21)
     for i in nodes:
@@ -330,7 +333,7 @@ for i in datafiles:
     Rebalancing.setParam('Timelimit', 7200)  # finish running once 2hrs has passed
     Rebalancing._x = x
 
-    Rebalancing.Params.LazyConstraints = 1
+    #Rebalancing.Params.LazyConstraints = 1
     Rebalancing.setParam('MIPGap', 0.00)  # finish running once 5% gap is reached
     Rebalancing.setParam('Timelimit', 7200)  # finish running once 2hrs has passed
     # Rebalancing.optimize(subtourelim)
@@ -361,6 +364,7 @@ for i in datafiles:
         if abs(y[i].x) > 1e-6:
             f.write(f"y_{i} {y[i].x}\n")
 
+    f.close()
     # Rebalancing.setParam(grb.Param.heuristics, 0.0)
 
     print("Start from here")

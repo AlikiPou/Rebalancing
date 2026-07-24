@@ -46,9 +46,8 @@ K = 2
 datafiles = []
 '''
 datafiles.append("Coordinates_7_Athens.txt")
-'''
+
 datafiles.append("Coordinates_12_RC_NYC.txt")
-'''
 datafiles.append("Coordinates_12_Cluster_NYC.txt")
 datafiles.append("Coordinates_12_Random_Ber.txt")
 datafiles.append("Coordinates_12_RC_Ber.txt")
@@ -66,7 +65,9 @@ datafiles.append("Coordinates_15_RC_NYC.txt")
 datafiles.append("Coordinates_15_Random_NYC.txt")
 datafiles.append("Coordinates_15_Cluster_Ber.txt")
 datafiles.append("Coordinates_15_RC_Ber.txt")
+'''
 datafiles.append("Coordinates_15_Random_Ber.txt")
+'''
 datafiles.append("Coordinates_15_Cluster_Bar.txt")
 datafiles.append("Coordinates_15_RC_Bar.txt")
 datafiles.append("Coordinates_15_Random_Bar.txt")
@@ -102,738 +103,745 @@ datafiles.append("Coordinates_10_Random_NYC.txt")
 datafiles.append("Coordinates_10_Random_Bar.txt")
 datafiles.append("Coordinates_10_Random_Ber.txt")
 '''
-path = datafiles[0]
 
-print("\nOptimization instance selected:")
-print(path)
+#path = datafiles[0]
 
-# ============================================================
-# 3. Create synthetic stochastic scenarios for stress testing
-# ============================================================
+for i in datafiles:
 
-# ------------------------------------------------------------
-# ORIGINAL EMPIRICAL-SCENARIO INPUT (COMMENTED OUT)
-# ------------------------------------------------------------
-# The following line originally read the stochastic demand data
-# from the scenario-draws CSV file:
-#
-# scenario_df_full = pd.read_csv(scenario_file)
-#
-# For stress-testing purposes, the empirical scenario input is
-# replaced below by independently generated discrete net bike
-# changes for every optimization node and every scenario.
-# ------------------------------------------------------------
+    path = i
 
-# Read only the header of the selected optimization instance here
-# so that the synthetic generator creates exactly one demand draw
-# for each station/node in the instance. For example, a 15-node
-# instance receives 15 independent net-bike-change draws per scenario.
-instance_file_for_synthetic_scenarios = foldername / path
+    print("\nOptimization instance selected:")
+    print(path)
 
-if not instance_file_for_synthetic_scenarios.exists():
-    raise FileNotFoundError(
-        f"Instance file not found: {instance_file_for_synthetic_scenarios}"
+
+    # ============================================================
+    # 3. Create synthetic stochastic scenarios for stress testing
+    # ============================================================
+
+    # ------------------------------------------------------------
+    # ORIGINAL EMPIRICAL-SCENARIO INPUT (COMMENTED OUT)
+    # ------------------------------------------------------------
+    # The following line originally read the stochastic demand data
+    # from the scenario-draws CSV file:
+    #
+    # scenario_df_full = pd.read_csv(scenario_file)
+    #
+    # For stress-testing purposes, the empirical scenario input is
+    # replaced below by independently generated discrete net bike
+    # changes for every optimization node and every scenario.
+    # ------------------------------------------------------------
+
+    # Read only the header of the selected optimization instance here
+    # so that the synthetic generator creates exactly one demand draw
+    # for each station/node in the instance. For example, a 15-node
+    # instance receives 15 independent net-bike-change draws per scenario.
+    instance_file_for_synthetic_scenarios = foldername / path
+
+    if not instance_file_for_synthetic_scenarios.exists():
+        raise FileNotFoundError(
+            f"Instance file not found: {instance_file_for_synthetic_scenarios}"
+        )
+
+    synthetic_data_header = np.loadtxt(
+        instance_file_for_synthetic_scenarios,
+        max_rows=1,
+        dtype=int
     )
 
-synthetic_data_header = np.loadtxt(
-    instance_file_for_synthetic_scenarios,
-    max_rows=1,
-    dtype=int
-)
+    numberOfNodes_for_synthetic_scenarios = int(synthetic_data_header[0])
 
-numberOfNodes_for_synthetic_scenarios = int(synthetic_data_header[0])
+    # Reproducible random-number generator.
+    # Change 123 to another integer for a different stress-test replication.
+    run_seed = 123
+    rng = np.random.default_rng(run_seed)
 
-# Reproducible random-number generator.
-# Change 123 to another integer for a different stress-test replication.
-run_seed = 123
-rng = np.random.default_rng(run_seed)
+    # Possible discrete net bike changes.
+    synthetic_net_change_values = np.arange(-5, 6)
 
-# Possible discrete net bike changes.
-synthetic_net_change_values = np.arange(-5, 6)
+    # Symmetric discrete probability distribution:
+    # P(0) = 20%, P(+/-1) = 18% each, P(+/-2) = 15% each.
+    # The remaining 24% is assigned symmetrically to +/-3, +/-4, and +/-5.
+    synthetic_net_change_probabilities = np.array([
+        0.005,  # -5
+        0.015,  # -4
+        0.050,  # -3
+        0.150,  # -2
+        0.180,  # -1
+        0.200,  #  0
+        0.180,  #  1
+        0.150,  #  2
+        0.050,  #  3
+        0.015,  #  4
+        0.005   #  5
+    ])
 
-# Symmetric discrete probability distribution:
-# P(0) = 20%, P(+/-1) = 18% each, P(+/-2) = 15% each.
-# The remaining 24% is assigned symmetrically to +/-3, +/-4, and +/-5.
-synthetic_net_change_probabilities = np.array([
-    0.005,  # -5
-    0.015,  # -4
-    0.050,  # -3
-    0.150,  # -2
-    0.180,  # -1
-    0.200,  #  0
-    0.180,  #  1
-    0.150,  #  2
-    0.050,  #  3
-    0.015,  #  4
-    0.005   #  5
-])
+    if not np.isclose(synthetic_net_change_probabilities.sum(), 1.0):
+        raise ValueError(
+            "Synthetic demand probabilities must sum to 1.0. "
+            f"Current sum: {synthetic_net_change_probabilities.sum()}"
+        )
 
-if not np.isclose(synthetic_net_change_probabilities.sum(), 1.0):
-    raise ValueError(
-        "Synthetic demand probabilities must sum to 1.0. "
-        f"Current sum: {synthetic_net_change_probabilities.sum()}"
-    )
+    # Generate one discrete net-bike-change draw for every combination
+    # of scenario and optimization node.
+    synthetic_scenario_rows = []
 
-# Generate one discrete net-bike-change draw for every combination
-# of scenario and optimization node.
-synthetic_scenario_rows = []
+    for scenario_id in range(1, number_of_scenarios_to_use + 1):
+        scenario_draws = rng.choice(
+            synthetic_net_change_values,
+            size=numberOfNodes_for_synthetic_scenarios,
+            replace=True,
+            p=synthetic_net_change_probabilities
+        )
 
-for scenario_id in range(1, number_of_scenarios_to_use + 1):
-    scenario_draws = rng.choice(
-        synthetic_net_change_values,
-        size=numberOfNodes_for_synthetic_scenarios,
-        replace=True,
-        p=synthetic_net_change_probabilities
-    )
+        for node_id, net_change in enumerate(scenario_draws, start=1):
+            synthetic_scenario_rows.append({
+                "scenario_id": scenario_id,
+                "name_en": f"node_{node_id}",
+                "stochastic_net_bike_change_15min": int(net_change)
+            })
 
-    for node_id, net_change in enumerate(scenario_draws, start=1):
-        synthetic_scenario_rows.append({
-            "scenario_id": scenario_id,
-            "name_en": f"node_{node_id}",
-            "stochastic_net_bike_change_15min": int(net_change)
-        })
+    scenario_df_full = pd.DataFrame(synthetic_scenario_rows)
 
-scenario_df_full = pd.DataFrame(synthetic_scenario_rows)
+    print("Scenario file columns:")
+    print(scenario_df_full.columns)
 
-print("Scenario file columns:")
-print(scenario_df_full.columns)
-
-required_scenario_cols = [
-    "scenario_id",
-    "name_en",
-    "stochastic_net_bike_change_15min"
-]
-
-missing_scenario_cols = [
-    col for col in required_scenario_cols
-    if col not in scenario_df_full.columns
-]
-
-if missing_scenario_cols:
-    raise KeyError(
-        f"Missing required columns in synthetic scenario data: {missing_scenario_cols}\n"
-        f"Available columns are: {list(scenario_df_full.columns)}"
-    )
-
-scenario_df_full["scenario_id"] = pd.to_numeric(
-    scenario_df_full["scenario_id"],
-    errors="coerce"
-)
-
-scenario_df_full["stochastic_net_bike_change_15min"] = pd.to_numeric(
-    scenario_df_full["stochastic_net_bike_change_15min"],
-    errors="coerce"
-)
-
-scenario_df_full = scenario_df_full.dropna(
-    subset=[
+    required_scenario_cols = [
         "scenario_id",
         "name_en",
         "stochastic_net_bike_change_15min"
     ]
-)
 
-scenario_df_full["scenario_id"] = scenario_df_full["scenario_id"].astype(int)
-scenario_df_full["stochastic_net_bike_change_15min"] = (
-    scenario_df_full["stochastic_net_bike_change_15min"].astype(int)
-)
+    missing_scenario_cols = [
+        col for col in required_scenario_cols
+        if col not in scenario_df_full.columns
+    ]
 
-# ------------------------------------------------------------
-# Negative net change becomes demand.
-# Positive net change becomes inflow.
-# ------------------------------------------------------------
-
-scenario_df_full["stochastic_demand_15min"] = (
-    -scenario_df_full["stochastic_net_bike_change_15min"]
-).clip(lower=0)
-
-scenario_df_full["stochastic_inflow_15min"] = (
-    scenario_df_full["stochastic_net_bike_change_15min"]
-).clip(lower=0)
-
-scenario_df_full["stochastic_demand_15min"] = (
-    scenario_df_full["stochastic_demand_15min"].astype(int)
-)
-
-scenario_df_full["stochastic_inflow_15min"] = (
-    scenario_df_full["stochastic_inflow_15min"].astype(int)
-)
-
-# Save all generated random demand data to a separate Excel file.
-synthetic_scenario_output_file = solution_folder / (
-    f"synthetic_scenario_draws_{Path(path).stem}_"
-    f"{number_of_scenarios_to_use}_scenarios_seed_{run_seed}.xlsx"
-)
-
-scenario_df_full.to_excel(
-    synthetic_scenario_output_file,
-    index=False
-)
-
-print("\nSynthetic scenario data saved to:")
-print(synthetic_scenario_output_file)
-
-available_scenarios = sorted(scenario_df_full["scenario_id"].unique())
-
-if number_of_scenarios_to_use <= len(available_scenarios):
-    selected_scenarios = tuple(
-        rng.choice(
-            available_scenarios,
-            size=number_of_scenarios_to_use,
-            replace=False
+    if missing_scenario_cols:
+        raise KeyError(
+            f"Missing required columns in synthetic scenario data: {missing_scenario_cols}\n"
+            f"Available columns are: {list(scenario_df_full.columns)}"
         )
+
+    scenario_df_full["scenario_id"] = pd.to_numeric(
+        scenario_df_full["scenario_id"],
+        errors="coerce"
     )
-else:
-    selected_scenarios = tuple(
-        rng.choice(
-            available_scenarios,
-            size=number_of_scenarios_to_use,
-            replace=True
+
+    scenario_df_full["stochastic_net_bike_change_15min"] = pd.to_numeric(
+        scenario_df_full["stochastic_net_bike_change_15min"],
+        errors="coerce"
+    )
+
+    scenario_df_full = scenario_df_full.dropna(
+        subset=[
+            "scenario_id",
+            "name_en",
+            "stochastic_net_bike_change_15min"
+        ]
+    )
+
+    scenario_df_full["scenario_id"] = scenario_df_full["scenario_id"].astype(int)
+    scenario_df_full["stochastic_net_bike_change_15min"] = (
+        scenario_df_full["stochastic_net_bike_change_15min"].astype(int)
+    )
+
+    # ------------------------------------------------------------
+    # Negative net change becomes demand.
+    # Positive net change becomes inflow.
+    # ------------------------------------------------------------
+
+    scenario_df_full["stochastic_demand_15min"] = (
+        -scenario_df_full["stochastic_net_bike_change_15min"]
+    ).clip(lower=0)
+
+    scenario_df_full["stochastic_inflow_15min"] = (
+        scenario_df_full["stochastic_net_bike_change_15min"]
+    ).clip(lower=0)
+
+    scenario_df_full["stochastic_demand_15min"] = (
+        scenario_df_full["stochastic_demand_15min"].astype(int)
+    )
+
+    scenario_df_full["stochastic_inflow_15min"] = (
+        scenario_df_full["stochastic_inflow_15min"].astype(int)
+    )
+
+    # Save all generated random demand data to a separate Excel file.
+    synthetic_scenario_output_file = solution_folder / (
+        f"synthetic_scenario_draws_{Path(path).stem}_"
+        f"{number_of_scenarios_to_use}_scenarios_seed_{run_seed}.xlsx"
+    )
+
+    scenario_df_full.to_excel(
+        synthetic_scenario_output_file,
+        index=False
+    )
+
+    print("\nSynthetic scenario data saved to:")
+    print(synthetic_scenario_output_file)
+
+    available_scenarios = sorted(scenario_df_full["scenario_id"].unique())
+
+    if number_of_scenarios_to_use <= len(available_scenarios):
+        selected_scenarios = tuple(
+            rng.choice(
+                available_scenarios,
+                size=number_of_scenarios_to_use,
+                replace=False
+            )
         )
-    )
-
-selected_scenarios = tuple(sorted(selected_scenarios))
-
-scenario_df_full = scenario_df_full[
-    scenario_df_full["scenario_id"].isin(selected_scenarios)
-].copy()
-
-S = selected_scenarios
-
-print("\nAvailable synthetic node labels:")
-print(sorted(scenario_df_full["name_en"].unique()))
-
-print("\nNumber of selected scenarios:", len(selected_scenarios))
-
-# ============================================================
-# 4. Map optimization nodes to municipal districts
-# ============================================================
-
-# Original seven-district mapping retained below as a comment.
-# node_to_area = {
-#     1: "1st",
-#     2: "2nd",
-#     3: "3rd",
-#     4: "4th",
-#     5: "5th",
-#     6: "6th",
-#     7: "7th",
-# }
-
-# Synthetic stress-test scenarios are generated directly for every
-# optimization node, regardless of whether the instance has 5, 7,
-# 10, 15, 20, or another number of nodes.
-node_to_area = {
-    i: f"node_{i}"
-    for i in range(1, numberOfNodes_for_synthetic_scenarios + 1)
-}
-
-# ============================================================
-# 5. Read deterministic optimization instance
-# ============================================================
-
-instance_file = foldername / path
-
-print("\nReading optimization instance from:")
-print(instance_file)
-
-if not instance_file.exists():
-    raise FileNotFoundError(f"Instance file not found: {instance_file}")
-
-data_header = np.loadtxt(instance_file, max_rows=1, dtype=int)
-
-numberOfNodes = int(data_header[0])
-vehicleCapacity = int(data_header[2])
-
-end = numberOfNodes + 1
-
-data_main_body = np.loadtxt(instance_file, skiprows=1, dtype=float)
-
-nodes = tuple(range(0, numberOfNodes + 2))
-locations = tuple(range(1, numberOfNodes + 2))
-
-print("\nNumber of optimization nodes:", numberOfNodes)
-print("Vehicle capacity:", vehicleCapacity)
-print("End depot:", end)
-
-# ------------------------------------------------------------
-# Check node-to-area mapping
-# ------------------------------------------------------------
-
-scenario_areas = sorted(scenario_df_full["name_en"].unique())
-
-missing_node_mapping = [
-    i for i in range(1, numberOfNodes + 1)
-    if i not in node_to_area
-]
-
-if missing_node_mapping:
-    raise ValueError(
-        f"Missing node_to_area mapping for nodes: {missing_node_mapping}\n"
-        f"Number of optimization nodes is {numberOfNodes}, "
-        f"but node_to_area only contains {len(node_to_area)} mapped nodes."
-    )
-
-missing_areas = [
-    area for area in node_to_area.values()
-    if area not in scenario_areas
-]
-
-if missing_areas:
-    raise ValueError(
-        f"These areas from node_to_area were not found in the scenario file: {missing_areas}\n"
-        f"Available areas are: {scenario_areas}"
-    )
-
-print("\nNode-to-area mapping used:")
-for node_id in range(1, numberOfNodes + 1):
-    print(node_id, "->", node_to_area[node_id])
-
-
-# ============================================================
-# 6. Read distance, capacity, and initial status
-# ============================================================
-
-distanceMatrix = {}
-cost = {}
-P = {}
-status_node = {}
-
-for i in nodes:
-
-    if i != end:
-        P[i] = int(data_main_body[i, numberOfNodes + 3])
-        status_node[i] = int(data_main_body[i, numberOfNodes + 4])
-
     else:
-        P[i] = int(data_main_body[0, numberOfNodes + 3])
-        status_node[i] = int(data_main_body[0, numberOfNodes + 4])
+        selected_scenarios = tuple(
+            rng.choice(
+                available_scenarios,
+                size=number_of_scenarios_to_use,
+                replace=True
+            )
+        )
 
-    for j in nodes:
+    selected_scenarios = tuple(sorted(selected_scenarios))
 
-        if j != end:
+    scenario_df_full = scenario_df_full[
+        scenario_df_full["scenario_id"].isin(selected_scenarios)
+    ].copy()
 
-            if i != end:
-                distanceMatrix[(i, j)] = data_main_body[i, j + 1]
-                cost[(i, j)] = distanceMatrix[(i, j)]
+    S = selected_scenarios
 
-            else:
-                distanceMatrix[(i, j)] = data_main_body[0, j + 1]
-                cost[(i, j)] = distanceMatrix[(0, j)]
+    print("\nAvailable synthetic node labels:")
+    print(sorted(scenario_df_full["name_en"].unique()))
 
-        else:
+    print("\nNumber of selected scenarios:", len(selected_scenarios))
 
-            if i != end:
-                distanceMatrix[(i, j)] = data_main_body[i, 0]
-                cost[(i, j)] = distanceMatrix[(i, 0)]
+    # ============================================================
+    # 4. Map optimization nodes to municipal districts
+    # ============================================================
 
-            else:
-                distanceMatrix[(i, j)] = data_main_body[0, 0]
-                cost[(i, j)] = distanceMatrix[(0, 0)]
+    # Original seven-district mapping retained below as a comment.
+    # node_to_area = {
+    #     1: "1st",
+    #     2: "2nd",
+    #     3: "3rd",
+    #     4: "4th",
+    #     5: "5th",
+    #     6: "6th",
+    #     7: "7th",
+    # }
 
-# Depot and artificial end depot
-P[0] = 0
-P[end] = 0
-status_node[0] = 0
-status_node[end] = 0
+    # Synthetic stress-test scenarios are generated directly for every
+    # optimization node, regardless of whether the instance has 5, 7,
+    # 10, 15, 20, or another number of nodes.
+    node_to_area = {
+        i: f"node_{i}"
+        for i in range(1, numberOfNodes_for_synthetic_scenarios + 1)
+    }
 
-initial_load = {i: 0 for i in nodes}
+    # ============================================================
+    # 5. Read deterministic optimization instance
+    # ============================================================
 
-print("\nInitial load:")
-print(initial_load)
+    instance_file = foldername / path
 
-# ============================================================
-# 7. Build scenario dictionaries
-# ============================================================
+    print("\nReading optimization instance from:")
+    print(instance_file)
 
-stochastic_net_change = {}
-stochastic_demand = {}
-stochastic_inflow = {}
+    if not instance_file.exists():
+        raise FileNotFoundError(f"Instance file not found: {instance_file}")
 
-for s in S:
+    data_header = np.loadtxt(instance_file, max_rows=1, dtype=int)
+
+    numberOfNodes = int(data_header[0])
+    vehicleCapacity = int(data_header[2])
+
+    end = numberOfNodes + 1
+
+    data_main_body = np.loadtxt(instance_file, skiprows=1, dtype=float)
+
+    nodes = tuple(range(0, numberOfNodes + 2))
+    locations = tuple(range(1, numberOfNodes + 2))
+
+    print("\nNumber of optimization nodes:", numberOfNodes)
+    print("Vehicle capacity:", vehicleCapacity)
+    print("End depot:", end)
+
+    # ------------------------------------------------------------
+    # Check node-to-area mapping
+    # ------------------------------------------------------------
+
+    scenario_areas = sorted(scenario_df_full["name_en"].unique())
+
+    missing_node_mapping = [
+        i for i in range(1, numberOfNodes + 1)
+        if i not in node_to_area
+    ]
+
+    if missing_node_mapping:
+        raise ValueError(
+            f"Missing node_to_area mapping for nodes: {missing_node_mapping}\n"
+            f"Number of optimization nodes is {numberOfNodes}, "
+            f"but node_to_area only contains {len(node_to_area)} mapped nodes."
+        )
+
+    missing_areas = [
+        area for area in node_to_area.values()
+        if area not in scenario_areas
+    ]
+
+    if missing_areas:
+        raise ValueError(
+            f"These areas from node_to_area were not found in the scenario file: {missing_areas}\n"
+            f"Available areas are: {scenario_areas}"
+        )
+
+    print("\nNode-to-area mapping used:")
+    for node_id in range(1, numberOfNodes + 1):
+        print(node_id, "->", node_to_area[node_id])
+
+
+    # ============================================================
+    # 6. Read distance, capacity, and initial status
+    # ============================================================
+
+    distanceMatrix = {}
+    cost = {}
+    P = {}
+    status_node = {}
 
     for i in nodes:
 
-        if i == 0 or i == end:
-            stochastic_net_change[(s, i)] = 0
-            stochastic_demand[(s, i)] = 0
-            stochastic_inflow[(s, i)] = 0
+        if i != end:
+            P[i] = int(data_main_body[i, numberOfNodes + 3])
+            status_node[i] = int(data_main_body[i, numberOfNodes + 4])
 
         else:
-            area_name = node_to_area[i]
+            P[i] = int(data_main_body[0, numberOfNodes + 3])
+            status_node[i] = int(data_main_body[0, numberOfNodes + 4])
 
-            row = scenario_df_full[
-                (scenario_df_full["scenario_id"] == s)
-                & (scenario_df_full["name_en"] == area_name)
-            ]
+        for j in nodes:
 
-            if row.empty:
-                raise ValueError(
-                    f"No scenario data found for scenario {s}, "
-                    f"node {i}, area '{area_name}'."
+            if j != end:
+
+                if i != end:
+                    distanceMatrix[(i, j)] = data_main_body[i, j + 1]
+                    cost[(i, j)] = distanceMatrix[(i, j)]
+
+                else:
+                    distanceMatrix[(i, j)] = data_main_body[0, j + 1]
+                    cost[(i, j)] = distanceMatrix[(0, j)]
+
+            else:
+
+                if i != end:
+                    distanceMatrix[(i, j)] = data_main_body[i, 0]
+                    cost[(i, j)] = distanceMatrix[(i, 0)]
+
+                else:
+                    distanceMatrix[(i, j)] = data_main_body[0, 0]
+                    cost[(i, j)] = distanceMatrix[(0, 0)]
+
+    # Depot and artificial end depot
+    P[0] = 0
+    P[end] = 0
+    status_node[0] = 0
+    status_node[end] = 0
+
+    initial_load = {i: 0 for i in nodes}
+
+    print("\nInitial load:")
+    print(initial_load)
+
+    # ============================================================
+    # 7. Build scenario dictionaries
+    # ============================================================
+
+    stochastic_net_change = {}
+    stochastic_demand = {}
+    stochastic_inflow = {}
+
+    for s in S:
+
+        for i in nodes:
+
+            if i == 0 or i == end:
+                stochastic_net_change[(s, i)] = 0
+                stochastic_demand[(s, i)] = 0
+                stochastic_inflow[(s, i)] = 0
+
+            else:
+                area_name = node_to_area[i]
+
+                row = scenario_df_full[
+                    (scenario_df_full["scenario_id"] == s)
+                    & (scenario_df_full["name_en"] == area_name)
+                ]
+
+                if row.empty:
+                    raise ValueError(
+                        f"No scenario data found for scenario {s}, "
+                        f"node {i}, area '{area_name}'."
+                    )
+
+                net_change = int(
+                    row["stochastic_net_bike_change_15min"].iloc[0]
                 )
 
-            net_change = int(
-                row["stochastic_net_bike_change_15min"].iloc[0]
-            )
+                demand = max(-net_change, 0)
+                inflow = max(net_change, 0)
 
-            demand = max(-net_change, 0)
-            inflow = max(net_change, 0)
+                stochastic_net_change[(s, i)] = net_change
+                stochastic_demand[(s, i)] = demand
+                stochastic_inflow[(s, i)] = inflow
 
-            stochastic_net_change[(s, i)] = net_change
-            stochastic_demand[(s, i)] = demand
-            stochastic_inflow[(s, i)] = inflow
-
-print("\nScenario dictionaries created.")
-print("Number of scenarios used:", len(S))
+    print("\nScenario dictionaries created.")
+    print("Number of scenarios used:", len(S))
 
 
-# ============================================================
-# 8. Create optimization model
-# ============================================================
+    # ============================================================
+    # 8. Create optimization model
+    # ============================================================
 
-Rebalancing = grb.Model(name="Stochastic_SAA_Rebalancing")
+    Rebalancing = grb.Model(name="Stochastic_SAA_Rebalancing")
 
-# ============================================================
-# 9. Decision variables
-# ============================================================
+    # ============================================================
+    # 9. Decision variables
+    # ============================================================
 
-# x[i,j] = 1 if arc i,j is traversed
-x = {(i, j): Rebalancing.addVar(vtype=grb.GRB.BINARY,name=f"x_{i}_{j}") for i in nodes for j in nodes if i != end}
+    # x[i,j] = 1 if arc i,j is traversed
+    x = {(i, j): Rebalancing.addVar(vtype=grb.GRB.BINARY,name=f"x_{i}_{j}") for i in nodes for j in nodes if i != end}
 
-# Load of vehicle after serving node i
-l = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=0, name=f"l_{i}") for i in nodes}
+    # Load of vehicle after serving node i
+    l = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=0, name=f"l_{i}") for i in nodes}
 
-# eta_i: station status after rebalancing, before stochastic demand/inflow
-st = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=0, name=f"st_{i}") for i in nodes}
+    # eta_i: station status after rebalancing, before stochastic demand/inflow
+    st = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=0, name=f"st_{i}") for i in nodes}
 
-# y[i] > 0 means bikes loaded from station i onto vehicle. y[i] < 0 means bikes unloaded from vehicle to station i
-y = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"y_{i}") for i in nodes}
+    # y[i] > 0 means bikes loaded from station i onto vehicle. y[i] < 0 means bikes unloaded from vehicle to station i
+    y = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"y_{i}") for i in nodes}
 
-# Scenario-dependent auxiliary variables
-b = {(s, i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"b_{s}_{i}") for s in S for i in nodes}
+    # Scenario-dependent auxiliary variables
+    b = {(s, i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=-10000000, name=f"b_{s}_{i}") for s in S for i in nodes}
 
-r = {(s, i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=0, name=f"r_{s}_{i}") for s in S for i in nodes}
+    r = {(s, i): Rebalancing.addVar(vtype=grb.GRB.INTEGER, lb=0, name=f"r_{s}_{i}") for s in S for i in nodes}
 
-theta = {(s, i): Rebalancing.addVar(vtype=grb.GRB.BINARY,name=f"theta_{s}_{i}") for s in S for i in nodes}
+    theta = {(s, i): Rebalancing.addVar(vtype=grb.GRB.BINARY,name=f"theta_{s}_{i}") for s in S for i in nodes}
 
-# Time component
-t = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER,lb=-10000000,name=f"t_{i}") for i in nodes}
+    # Time component
+    t = {i: Rebalancing.addVar(vtype=grb.GRB.INTEGER,lb=-10000000,name=f"t_{i}") for i in nodes}
 
-Rebalancing.update()
+    Rebalancing.update()
 
-# ============================================================
-# 10. Initial constraints
-# ============================================================
+    # ============================================================
+    # 10. Initial constraints
+    # ============================================================
 
-for i in nodes:
-    Rebalancing.addConstr(l[i] >= 0)
-    Rebalancing.addConstr(st[i] >= 0)
-    Rebalancing.addConstr(y[i] >= -40)
+    for i in nodes:
+        Rebalancing.addConstr(l[i] >= 0)
+        Rebalancing.addConstr(st[i] >= 0)
+        Rebalancing.addConstr(y[i] >= -40)
 
-Rebalancing.addConstr(y[0] == 0)
-Rebalancing.addConstr(t[0] == 0)
-Rebalancing.addConstr(y[end] == 0)
+    Rebalancing.addConstr(y[0] == 0)
+    Rebalancing.addConstr(t[0] == 0)
+    Rebalancing.addConstr(y[end] == 0)
 
-for s in S:
-    Rebalancing.addConstr(theta[(s, 0)] == 0)
-    Rebalancing.addConstr(r[(s, 0)] == 0)
-    Rebalancing.addConstr(b[(s, 0)] == 0)
+    for s in S:
+        Rebalancing.addConstr(theta[(s, 0)] == 0)
+        Rebalancing.addConstr(r[(s, 0)] == 0)
+        Rebalancing.addConstr(b[(s, 0)] == 0)
 
-    Rebalancing.addConstr(theta[(s, end)] == 0)
-    Rebalancing.addConstr(r[(s, end)] == 0)
-    Rebalancing.addConstr(b[(s, end)] == 0)
+        Rebalancing.addConstr(theta[(s, end)] == 0)
+        Rebalancing.addConstr(r[(s, end)] == 0)
+        Rebalancing.addConstr(b[(s, end)] == 0)
 
-for i in nodes:
+    for i in nodes:
+        for j in nodes:
+            if i == j and i < end:
+                Rebalancing.addConstr(x[(i, j)] == 0)
+
+    # Depot status
+    Rebalancing.addConstr(st[0] == 0)
+    Rebalancing.addConstr(st[end] == 0)
+
+
+    # ============================================================
+    # 11. Objective function: Sample Average Approximation
+    # ============================================================
+    routing_cost = grb.quicksum(cost[(i, j)] * x[(i, j)] for i in nodes for j in nodes if i != j and i < end)
+
+    expected_shortage_penalty = (p / len(S)) * grb.quicksum(r[(s, i)] for s in S for i in nodes if i != 0 and i != end)
+
+    Rebalancing.setObjective(routing_cost + expected_shortage_penalty, grb.GRB.MINIMIZE)
+
+    # ============================================================
+    # 12. Routing constraints
+    # ============================================================
+
+    # Everything leaves from the depot
+    Rebalancing.addConstr(grb.quicksum(x[(0, j)] for j in nodes if j != 0 and j != end) == K)
+
+    # Everything returns to the artificial end depot
+    Rebalancing.addConstr(grb.quicksum(x[(j, end)] for j in nodes if j != 0 and j != end) == K)
+
+    # Every node is served at most once
+    for i in nodes:
+        if i != 0 and i < end:
+            Rebalancing.addConstr(grb.quicksum(x[(i, j)] for j in nodes if j != i and j != 0) <= 1)
+
+    # Flow conservation
     for j in nodes:
-        if i == j and i < end:
-            Rebalancing.addConstr(x[(i, j)] == 0)
+        if j != 0 and j != end:
+            Rebalancing.addConstr(grb.quicksum(x[(i, j)] for i in nodes if j != i and i < end) - grb.quicksum(x[(j, i)] for i in nodes if j != i and i != 0) == 0)
 
-# Depot status
-Rebalancing.addConstr(st[0] == 0)
-Rebalancing.addConstr(st[end] == 0)
+    # Time sequencing
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0 and i < end:
+                Rebalancing.addConstr(t[j] >= t[i] + cost[(i, j)] - M * (1 - x[(i, j)]))
 
+    # Do not allow direct 0 -> end
+    Rebalancing.addConstr(x[(0, end)] == 0)
 
-# ============================================================
-# 11. Objective function: Sample Average Approximation
-# ============================================================
-routing_cost = grb.quicksum(cost[(i, j)] * x[(i, j)] for i in nodes for j in nodes if i != j and i < end)
+    # No node returns to initial depot 0
+    for i in nodes:
+        if i != 0 and i < end:
+            Rebalancing.addConstr(x[(i, 0)] == 0)
 
-expected_shortage_penalty = (p / len(S)) * grb.quicksum(r[(s, i)] for s in S for i in nodes if i != 0 and i != end)
+    # ============================================================
+    # 13. Vehicle load constraints
+    # ============================================================
 
-Rebalancing.setObjective(routing_cost + expected_shortage_penalty, grb.GRB.MINIMIZE)
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0 and j != end and i < end:
+                Rebalancing.addConstr(l[j] >= l[i] + y[j] - vehicleCapacity * (1 - x[(i, j)]))
+                Rebalancing.addConstr(l[j] <= l[i] + y[j] + vehicleCapacity * (1 - x[(i, j)]))
 
-# ============================================================
-# 12. Routing constraints
-# ============================================================
+    # Vehicle load cannot exceed capacity
+    for i in nodes:
+        Rebalancing.addConstr(l[i] <= vehicleCapacity)
 
-# Everything leaves from the depot
-Rebalancing.addConstr(grb.quicksum(x[(0, j)] for j in nodes if j != 0 and j != end) == K)
+    # Available bikes to load cannot exceed current station status
+    for i in nodes:
+        Rebalancing.addConstr(y[i] <= status_node[i])
 
-# Everything returns to the artificial end depot
-Rebalancing.addConstr(grb.quicksum(x[(j, end)] for j in nodes if j != 0 and j != end) == K)
+    # If y[j] > 0, cannot load more than remaining vehicle capacity
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0 and j != end and i < end:
+                Rebalancing.addConstr(y[j] <= vehicleCapacity - l[i] + M * (1 - x[(i, j)]))
 
-# Every node is served at most once
-for i in nodes:
-    if i != 0 and i < end:
-        Rebalancing.addConstr(grb.quicksum(x[(i, j)] for j in nodes if j != i and j != 0) <= 1)
+    # If y[j] < 0, cannot unload more than current vehicle load
+    for i in nodes:
+        for j in nodes:
+            if i != j and j != 0 and j != end and i < end:
+                Rebalancing.addConstr(-y[j] <= l[i] + M * (1 - x[(i, j)]))
 
-# Flow conservation
-for j in nodes:
-    if j != 0 and j != end:
-        Rebalancing.addConstr(grb.quicksum(x[(i, j)] for i in nodes if j != i and i < end) - grb.quicksum(x[(j, i)] for i in nodes if j != i and i != 0) == 0)
-
-# Time sequencing
-for i in nodes:
+    # If a station is not visited, y[i] must be zero
     for j in nodes:
-        if i != j and j != 0 and i < end:
-            Rebalancing.addConstr(t[j] >= t[i] + cost[(i, j)] - M * (1 - x[(i, j)]))
+        Rebalancing.addConstr(y[j] >= -M * grb.quicksum(x[(i, j)] for i in nodes if i != j and i < end))
 
-# Do not allow direct 0 -> end
-Rebalancing.addConstr(x[(0, end)] == 0)
+        Rebalancing.addConstr(y[j] <= M * grb.quicksum(x[(i, j)] for i in nodes if i != j and i < end))
 
-# No node returns to initial depot 0
-for i in nodes:
-    if i != 0 and i < end:
-        Rebalancing.addConstr(x[(i, 0)] == 0)
+    # Initial and final vehicle load
+    Rebalancing.addConstr(l[0] == initial_load[0])
+    Rebalancing.addConstr(l[end] == initial_load[0])
 
-# ============================================================
-# 13. Vehicle load constraints
-# ============================================================
+    # ============================================================
+    # 14. Station inventory constraints
+    # ============================================================
 
-for i in nodes:
-    for j in nodes:
-        if i != j and j != 0 and j != end and i < end:
-            Rebalancing.addConstr(l[j] >= l[i] + y[j] - vehicleCapacity * (1 - x[(i, j)]))
-            Rebalancing.addConstr(l[j] <= l[i] + y[j] + vehicleCapacity * (1 - x[(i, j)]))
+    # eta_i = station inventory after rebalancing, before demand/inflow
+    for i in nodes:
+        Rebalancing.addConstr(st[i] == status_node[i] - y[i])
 
-# Vehicle load cannot exceed capacity
-for i in nodes:
-    Rebalancing.addConstr(l[i] <= vehicleCapacity)
-
-# Available bikes to load cannot exceed current station status
-for i in nodes:
-    Rebalancing.addConstr(y[i] <= status_node[i])
-
-# If y[j] > 0, cannot load more than remaining vehicle capacity
-for i in nodes:
-    for j in nodes:
-        if i != j and j != 0 and j != end and i < end:
-            Rebalancing.addConstr(y[j] <= vehicleCapacity - l[i] + M * (1 - x[(i, j)]))
-
-# If y[j] < 0, cannot unload more than current vehicle load
-for i in nodes:
-    for j in nodes:
-        if i != j and j != 0 and j != end and i < end:
-            Rebalancing.addConstr(-y[j] <= l[i] + M * (1 - x[(i, j)]))
-
-# If a station is not visited, y[i] must be zero
-for j in nodes:
-    Rebalancing.addConstr(y[j] >= -M * grb.quicksum(x[(i, j)] for i in nodes if i != j and i < end))
-
-    Rebalancing.addConstr(y[j] <= M * grb.quicksum(x[(i, j)] for i in nodes if i != j and i < end))
-
-# Initial and final vehicle load
-Rebalancing.addConstr(l[0] == initial_load[0])
-Rebalancing.addConstr(l[end] == initial_load[0])
-
-# ============================================================
-# 14. Station inventory constraints
-# ============================================================
-
-# eta_i = station inventory after rebalancing, before demand/inflow
-for i in nodes:
-    Rebalancing.addConstr(st[i] == status_node[i] - y[i])
-
-# Capacity immediately after rebalancing - parking station capacity cannot be exceeded
-for i in nodes:
-    if i != 0 and i != end:
-        Rebalancing.addConstr(st[i] <= P[i])
-
-# !!!NEW CONSTRAINT!!!
-# Scenario-dependent capacity after stochastic demand and inflow
-# Positive net change is treated as inflow and may create capacity pressure.
-for s in S:
+    # Capacity immediately after rebalancing - parking station capacity cannot be exceeded
     for i in nodes:
         if i != 0 and i != end:
-            Rebalancing.addConstr(st[i] - stochastic_demand[(s, i)] + stochastic_inflow[(s, i)] <= P[i])
+            Rebalancing.addConstr(st[i] <= P[i])
+    '''
+    # !!!NEW CONSTRAINT!!!
+    # Scenario-dependent capacity after stochastic demand and inflow
+    # Positive net change is treated as inflow and may create capacity pressure.
+    for s in S:
+        for i in nodes:
+            if i != 0 and i != end:
+                Rebalancing.addConstr(st[i] - stochastic_demand[(s, i)] + stochastic_inflow[(s, i)] <= P[i])
+    '''
 
-# ============================================================
-# 15. Scenario-based unmet demand constraints
-# ============================================================
-# Negative net change becomes stochastic demand. Positive net change becomes stochastic inflow.
-# b[s,i] = demand[s,i] - inflow[s,i] - eta[i]
-# r[s,i] = max(b[s,i], 0)
+    # ============================================================
+    # 15. Scenario-based unmet demand constraints
+    # ============================================================
+    # Negative net change becomes stochastic demand. Positive net change becomes stochastic inflow.
+    # b[s,i] = demand[s,i] - inflow[s,i] - eta[i]
+    # r[s,i] = max(b[s,i], 0)
 
-for s in S:
-    for i in nodes:
-        if i != 0 and i != end:
-            Rebalancing.addConstr(b[(s, i)] == stochastic_demand[(s, i)] - stochastic_inflow[(s, i)] - st[i])
+    for s in S:
+        for i in nodes:
+            if i != 0 and i != end:
+                Rebalancing.addConstr(b[(s, i)] == stochastic_demand[(s, i)] - stochastic_inflow[(s, i)] - st[i])
 
-            Rebalancing.addConstr(r[(s, i)] >= b[(s, i)])
+                Rebalancing.addConstr(r[(s, i)] >= b[(s, i)])
 
-            Rebalancing.addConstr(r[(s, i)] >= 0)
+                Rebalancing.addConstr(r[(s, i)] >= 0)
 
-            Rebalancing.addConstr(r[(s, i)] <= M * theta[(s, i)])
+                Rebalancing.addConstr(r[(s, i)] <= M * theta[(s, i)])
 
-            Rebalancing.addConstr(r[(s, i)] <= b[(s, i)] + M * (1 - theta[(s, i)]))
+                Rebalancing.addConstr(r[(s, i)] <= b[(s, i)] + M * (1 - theta[(s, i)]))
 
-# ============================================================
-# 16. Optimize
-# ============================================================
+    # ============================================================
+    # 16. Optimize
+    # ============================================================
 
-Rebalancing.setParam("TimeLimit", 7200)
-Rebalancing.setParam("MIPGap", 0.00)
+    Rebalancing.setParam("TimeLimit", 7200)
+    Rebalancing.setParam("MIPGap", 0.00)
 
-Rebalancing.optimize()
+    Rebalancing.optimize()
 
-# ============================================================
-# 17. Save results
-# ============================================================
+    # ============================================================
+    # 17. Save results
+    # ============================================================
 
-if Rebalancing.status not in [
-    grb.GRB.OPTIMAL,
-    grb.GRB.TIME_LIMIT
-]:
-    print("Model ended with status:", Rebalancing.status)
+    if Rebalancing.status not in [
+        grb.GRB.OPTIMAL,
+        grb.GRB.TIME_LIMIT
+    ]:
+        print("Model ended with status:", Rebalancing.status)
 
-else:
+    else:
 
-    runtime = "%.2f" % Rebalancing.Runtime
+        runtime = "%.2f" % Rebalancing.Runtime
 
-    try:
-        gap = Rebalancing.MIPGap
-    except Exception:
-        gap = None
+        try:
+            gap = Rebalancing.MIPGap
+        except Exception:
+            gap = None
 
-    RoutingCosts = 0
-
-    for i, j in x:
-        if x[(i, j)].X > 0.1:
-            RoutingCosts += cost[(i, j)]
-
-    obj = Rebalancing.ObjVal
-
-    print("\nRoutingCosts:", RoutingCosts)
-    print("Objective value:", obj)
-    print("Runtime:", runtime)
-    print("MIP gap:", gap)
-
-    # Save solution file
-    solution_path = solution_folder / f"solution_{path}"
-
-    with open(solution_path, "w") as f:
-
-        # --------------------------------------------------
-        # Main solution summary
-        # --------------------------------------------------
-
-        f.write("Solution summary\n")
-        f.write("================\n")
-        f.write(f"Input instance: {path}\n")
-        f.write(f"Routing cost: {RoutingCosts}\n")
-        f.write(f"Objective value: {obj}\n")
-        f.write(f"Runtime: {runtime}\n")
-        f.write(f"MIP gap: {gap}\n")
-
-        # --------------------------------------------------
-        # Stochastic scenario information
-        # --------------------------------------------------
-
-        f.write("\nStochastic scenario information\n")
-        f.write("===============================\n")
-        f.write(f"Number of scenarios used: {len(S)}\n")
-        f.write("Scenario IDs used:\n")
-        f.write(", ".join(str(s) for s in S))
-        f.write("\n")
-
-        # --------------------------------------------------
-        # Selected routing arcs
-        # --------------------------------------------------
-
-        f.write("\nSelected routing arcs x[i,j]\n")
-        f.write("============================\n")
+        RoutingCosts = 0
 
         for i, j in x:
             if x[(i, j)].X > 0.1:
-                f.write(f"x_{i}_{j} {x[(i, j)].X}\n")
+                RoutingCosts += cost[(i, j)]
 
-        # --------------------------------------------------
-        # Loading / unloading decisions
-        # --------------------------------------------------
+        obj = Rebalancing.ObjVal
 
-        f.write("\nLoading/unloading variables y[i]\n")
-        f.write("=================================\n")
-        f.write("Positive y[i] = bikes loaded from station onto vehicle\n")
-        f.write("Negative y[i] = bikes unloaded from vehicle to station\n\n")
+        print("\nRoutingCosts:", RoutingCosts)
+        print("Objective value:", obj)
+        print("Runtime:", runtime)
+        print("MIP gap:", gap)
 
-        for i in nodes:
-            if abs(y[i].X) > 1e-6:
-                f.write(f"y_{i} {y[i].X}\n")
+        # Save solution file
+        solution_path = solution_folder / f"solution_{path}"
 
-        # --------------------------------------------------
-        # Station status after rebalancing
-        # --------------------------------------------------
+        with open(solution_path, "w") as f:
 
-        f.write("\nStation status after rebalancing eta[i]\n")
-        f.write("=======================================\n")
-        f.write("st[i] = bikes at node i after rebalancing, before stochastic demand/inflow\n\n")
+            # --------------------------------------------------
+            # Main solution summary
+            # --------------------------------------------------
 
-        for i in nodes:
-            if i != 0 and i != end:
-                f.write(
-                    f"node {i}, "
-                    f"area {node_to_area[i]}, "
-                    f"st_{i} {st[i].X}\n"
-                )
+            f.write("Solution summary\n")
+            f.write("================\n")
+            f.write(f"Input instance: {path}\n")
+            f.write(f"Routing cost: {RoutingCosts}\n")
+            f.write(f"Objective value: {obj}\n")
+            f.write(f"Runtime: {runtime}\n")
+            f.write(f"MIP gap: {gap}\n")
 
-        # --------------------------------------------------
-        # Positive unmet demand only
-        # --------------------------------------------------
+            # --------------------------------------------------
+            # Stochastic scenario information
+            # --------------------------------------------------
 
-        f.write("\nPositive unmet demand only: r[s,i]\n")
-        f.write("==================================\n")
-        f.write("Only scenario-node pairs with positive shortage are shown here.\n")
-        f.write("If r[s,i] is not listed, then shortage is zero for that scenario and node.\n\n")
+            f.write("\nStochastic scenario information\n")
+            f.write("===============================\n")
+            f.write(f"Number of scenarios used: {len(S)}\n")
+            f.write("Scenario IDs used:\n")
+            f.write(", ".join(str(s) for s in S))
+            f.write("\n")
 
-        for s in S:
+            # --------------------------------------------------
+            # Selected routing arcs
+            # --------------------------------------------------
+
+            f.write("\nSelected routing arcs x[i,j]\n")
+            f.write("============================\n")
+
+            for i, j in x:
+                if x[(i, j)].X > 0.1:
+                    f.write(f"x_{i}_{j} {x[(i, j)].X}\n")
+
+            # --------------------------------------------------
+            # Loading / unloading decisions
+            # --------------------------------------------------
+
+            f.write("\nLoading/unloading variables y[i]\n")
+            f.write("=================================\n")
+            f.write("Positive y[i] = bikes loaded from station onto vehicle\n")
+            f.write("Negative y[i] = bikes unloaded from vehicle to station\n\n")
+
             for i in nodes:
-                if i != 0 and i != end:
-                    if r[(s, i)].X > 1e-6:
-                        f.write(
-                            f"scenario {s}, "
-                            f"node {i}, "
-                            f"area {node_to_area[i]}, "
-                            f"shortage {r[(s, i)].X}\n"
-                        )
+                if abs(y[i].X) > 1e-6:
+                    f.write(f"y_{i} {y[i].X}\n")
 
-        # --------------------------------------------------
-        # All scenario outcomes
-        # --------------------------------------------------
+            # --------------------------------------------------
+            # Station status after rebalancing
+            # --------------------------------------------------
 
-        f.write("\nAll scenario outcomes\n")
-        f.write("=====================\n")
-        f.write(
-            "scenario_id,node,name_en,"
-            "stochastic_net_change,"
-            "stochastic_demand,"
-            "stochastic_inflow,"
-            "station_status_after_rebalancing,"
-            "shortage\n"
-        )
+            f.write("\nStation status after rebalancing eta[i]\n")
+            f.write("=======================================\n")
+            f.write("st[i] = bikes at node i after rebalancing, before stochastic demand/inflow\n\n")
 
-        for s in S:
             for i in nodes:
                 if i != 0 and i != end:
                     f.write(
-                        f"{s},"
-                        f"{i},"
-                        f"{node_to_area[i]},"
-                        f"{stochastic_net_change[(s, i)]},"
-                        f"{stochastic_demand[(s, i)]},"
-                        f"{stochastic_inflow[(s, i)]},"
-                        f"{st[i].X},"
-                        f"{r[(s, i)].X}\n"
+                        f"node {i}, "
+                        f"area {node_to_area[i]}, "
+                        f"st_{i} {st[i].X}\n"
                     )
 
-    print("\nSolution saved to:", solution_path)
+            # --------------------------------------------------
+            # Positive unmet demand only
+            # --------------------------------------------------
+
+            f.write("\nPositive unmet demand only: r[s,i]\n")
+            f.write("==================================\n")
+            f.write("Only scenario-node pairs with positive shortage are shown here.\n")
+            f.write("If r[s,i] is not listed, then shortage is zero for that scenario and node.\n\n")
+
+            for s in S:
+                for i in nodes:
+                    if i != 0 and i != end:
+                        if r[(s, i)].X > 1e-6:
+                            f.write(
+                                f"scenario {s}, "
+                                f"node {i}, "
+                                f"area {node_to_area[i]}, "
+                                f"shortage {r[(s, i)].X}\n"
+                            )
+
+            # --------------------------------------------------
+            # All scenario outcomes
+            # --------------------------------------------------
+
+            f.write("\nAll scenario outcomes\n")
+            f.write("=====================\n")
+            f.write(
+                "scenario_id,node,name_en,"
+                "stochastic_net_change,"
+                "stochastic_demand,"
+                "stochastic_inflow,"
+                "station_status_after_rebalancing,"
+                "shortage\n"
+            )
+
+            for s in S:
+                for i in nodes:
+                    if i != 0 and i != end:
+                        f.write(
+                            f"{s},"
+                            f"{i},"
+                            f"{node_to_area[i]},"
+                            f"{stochastic_net_change[(s, i)]},"
+                            f"{stochastic_demand[(s, i)]},"
+                            f"{stochastic_inflow[(s, i)]},"
+                            f"{st[i].X},"
+                            f"{r[(s, i)].X}\n"
+                        )
+
+        print("\nSolution saved to:", solution_path)
