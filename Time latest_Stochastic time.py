@@ -28,7 +28,7 @@ time_scenario_file = Path(
 
 # Number of scenarios to use
 # This is |S| in the mathematical formulation
-number_of_scenarios_to_use = 100
+number_of_scenarios_to_use = 5
 
 # Random seed for selecting a subset of scenarios
 run_seed = 123
@@ -59,14 +59,14 @@ datafiles.append("Coordinates_7_Athens.txt")
 
 datafiles.append("Coordinates_12_RC_NYC.txt")
 datafiles.append("Coordinates_12_Cluster_NYC.txt")
-'''
 datafiles.append("Coordinates_12_Random_Ber.txt")
-'''
 datafiles.append("Coordinates_12_RC_Ber.txt")
 datafiles.append("Coordinates_12_Cluster_Ber.txt")
 datafiles.append("Coordinates_12_RC_Bar.txt")
 datafiles.append("Coordinates_12_Random_Bar.txt")
+'''
 datafiles.append("Coordinates_12_Cluster_Bar.txt")
+'''
 datafiles.append("Coordinates_12_RC_PoA.txt")
 datafiles.append("Coordinates_12_Random_PoA.txt")
 datafiles.append("Coordinates_12_Cluster_PoA.txt")
@@ -513,8 +513,13 @@ for s in S:
 
         Rebalancing.addConstr(C[(s, i, j)] >= -M * (1 - z[(s, i, j)]))
 
+        Rebalancing.addConstr(z[(s, i, j)] <= x[(i, j)])
+
 for i, j in model_arcs:
-    Rebalancing.addConstr(grb.quicksum(z[(s, i, j)] for s in S) >= beta * len(S))
+        Rebalancing.addConstr(grb.quicksum(z[(s, i, j)] for s in S) >= beta * len(S) * x[(i, j)])
+
+#for i, j in model_arcs:
+#    Rebalancing.addConstr(grb.quicksum(z[(s, i, j)] for s in S) >= beta * len(S))
 
 # ============================================================
 # 12. Vehicle load constraints
